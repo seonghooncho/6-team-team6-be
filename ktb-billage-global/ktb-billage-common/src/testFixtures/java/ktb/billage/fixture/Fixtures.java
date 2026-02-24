@@ -132,26 +132,44 @@ public class Fixtures {
     }
 
     public void 그룹원_벌크_생성(Group group, int count) {
+        Integer hasUserNickname = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.columns " +
+                        "WHERE table_schema = DATABASE() AND table_name = 'users' AND column_name = 'nickname'",
+                Integer.class
+        );
+        boolean userNicknameColumnExists = hasUserNickname != null && hasUserNickname > 0;
+
         for (int i = 1; i <= count; i++) {
             String loginId = "bulk_user_" + group.getId() + "_" + i;
-            jdbcTemplate.update(
-                    "INSERT INTO users (login_id, password, nickname, avatar_url, created_at, updated_at, deleted_at) " +
-                            "VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, NULL)",
-                    loginId,
-                    "test-password",
-                    "nick-" + i,
-                    "images/default-avatar.png"
-            );
+            if (userNicknameColumnExists) {
+                jdbcTemplate.update(
+                        "INSERT INTO users (login_id, password, nickname, avatar_url, created_at, updated_at, deleted_at) " +
+                                "VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, NULL)",
+                        loginId,
+                        "test-password",
+                        "nick-" + i,
+                        "images/default-avatar.png"
+                );
+            } else {
+                jdbcTemplate.update(
+                        "INSERT INTO users (login_id, password, avatar_url, created_at, updated_at, deleted_at) " +
+                                "VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, NULL)",
+                        loginId,
+                        "test-password",
+                        "images/default-avatar.png"
+                );
+            }
             Long userId = jdbcTemplate.queryForObject(
                     "SELECT id FROM users WHERE login_id = ?",
                     Long.class,
                     loginId
             );
             jdbcTemplate.update(
-                    "INSERT INTO membership (group_id, user_id, created_at, updated_at, deleted_at) " +
-                            "VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, NULL)",
+                    "INSERT INTO membership (group_id, user_id, nickname, created_at, updated_at, deleted_at) " +
+                            "VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, NULL)",
                     group.getId(),
-                    userId
+                    userId,
+                    "nick-" + i
             );
         }
     }
