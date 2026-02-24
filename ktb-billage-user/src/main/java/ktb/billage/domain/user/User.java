@@ -32,9 +32,6 @@ public class User extends BaseEntity {
     @Column(nullable = false)
     private String password;
 
-    @Column(nullable = false)
-    private String nickname;
-
     @Column(name = "avatar_url", nullable = false)
     private String avatarUrl;
 
@@ -44,7 +41,6 @@ public class User extends BaseEntity {
     public User(String loginId, String encodedPassword) {
         this.loginId = loginId;
         this.password = encodedPassword;
-        this.nickname = loginId;
         this.avatarUrl = DEFAULT_AVATAR_URL;
         this.webPushEnabled = false;
     }
