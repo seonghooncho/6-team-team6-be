@@ -24,6 +24,9 @@ spring:
       on-profile: prod
   flyway:
     enabled: false
+    baseline-on-migrate: true
+    baseline-version: 1
+    clean-disabled: true
 
 logging:
   level:
