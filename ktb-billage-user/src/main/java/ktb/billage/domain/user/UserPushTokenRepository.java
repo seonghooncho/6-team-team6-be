@@ -10,6 +10,7 @@ import java.util.Optional;
 public interface UserPushTokenRepository extends JpaRepository<UserPushToken, Long> {
 
     Optional<UserPushToken> findByUserIdAndPlatformAndDeviceId(Long userId, UserPushToken.PushPlatform platform, String deviceId);
+    Optional<UserPushToken> findByFcmToken(String fcmToken);
 
     List<UserPushToken> findAllByUserId(Long userId);
 

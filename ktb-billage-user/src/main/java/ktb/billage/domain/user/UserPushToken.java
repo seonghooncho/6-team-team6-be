@@ -68,6 +68,14 @@ public class UserPushToken extends BaseEntity {
         this.lastSeenAt = lastSeenAt;
     }
 
+    public void rebind(User user, PushPlatform platform, String deviceId, String fcmToken, Instant lastSeenAt) {
+        this.user = user;
+        this.platform = platform;
+        this.deviceId = deviceId;
+        this.fcmToken = fcmToken;
+        this.lastSeenAt = lastSeenAt;
+    }
+
     public enum PushPlatform {
         WEB,
         IOS,

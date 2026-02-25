@@ -105,11 +105,25 @@ public class UserService {
         User user = findById(userId);
         Instant now = Instant.now();
 
-        userPushTokenRepository.findByUserIdAndPlatformAndDeviceId(userId, platform, deviceId)
-                .ifPresentOrElse(
-                        pushToken -> pushToken.updateToken(token, now),
-                        () -> userPushTokenRepository.save(new UserPushToken(user, platform, deviceId, token, now))
-                );
+        var currentDeviceTokenOpt = userPushTokenRepository.findByUserIdAndPlatformAndDeviceId(userId, platform, deviceId);
+        var sameTokenOwnerOpt = userPushTokenRepository.findByFcmToken(token);
+
+        if (currentDeviceTokenOpt.isPresent()) {
+            UserPushToken currentDeviceToken = currentDeviceTokenOpt.get();
+            if (sameTokenOwnerOpt.isPresent() && !sameTokenOwnerOpt.get().getId().equals(currentDeviceToken.getId())) {
+                userPushTokenRepository.delete(sameTokenOwnerOpt.get());
+            }
+            currentDeviceToken.updateToken(token, now);
+            return;
+        }
+
+        if (sameTokenOwnerOpt.isPresent()) {
+            UserPushToken tokenOwner = sameTokenOwnerOpt.get();
+            tokenOwner.rebind(user, platform, deviceId, token, now);
+            return;
+        }
+
+        userPushTokenRepository.save(new UserPushToken(user, platform, deviceId, token, now));
     }
     
     @Transactional
