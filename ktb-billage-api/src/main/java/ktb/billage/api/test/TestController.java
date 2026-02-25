@@ -10,6 +10,7 @@ import ktb.billage.web.common.annotation.AuthenticatedId;
 import ktb.billage.websocket.application.port.ChatPushNotifier;
 import ktb.billage.websocket.dto.ChatSendAckResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
 
+@Slf4j
 @Profile("dev")
 @RestController
 @RequestMapping("/test")
@@ -46,6 +48,7 @@ public class TestController {
                 Instant.now()
         );
 
+        log.info("[WEB PUSH TEST] Controller --- user id: {}", userId);
         chatPushNotifier.sendPush(userId, ack);
         return ResponseEntity.noContent().build();
     }
