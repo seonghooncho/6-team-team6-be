@@ -4,6 +4,7 @@ plugins {
 }
 
 dependencies {
+    implementation project(':ktb-billage-application')
     implementation project(':ktb-billage-auth')
     implementation project(':ktb-billage-group')
     implementation project(':ktb-billage-user')

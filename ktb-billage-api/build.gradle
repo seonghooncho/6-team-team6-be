@@ -15,6 +15,7 @@ dependencies {
     implementation project(':ktb-billage-global:ktb-billage-contract')
     implementation project(':ktb-billage-global:ktb-billage-common')
     implementation project(':ktb-billage-security')
+    implementation project(':ktb-billage-application')
     implementation project(':ktb-billage-infra')
 
     implementation 'org.springframework:spring-tx'

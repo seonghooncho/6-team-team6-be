@@ -1,0 +1,18 @@
+plugins {
+    id 'java-library'
+}
+
+dependencies {
+    implementation project(':ktb-billage-user')
+    implementation project(':ktb-billage-post')
+    implementation project(':ktb-billage-chat')
+    implementation project(':ktb-billage-group')
+    implementation project(':ktb-billage-global:ktb-billage-common')
+    implementation project(':ktb-billage-global:ktb-billage-contract')
+
+    implementation 'org.springframework.boot:spring-boot-starter'
+    implementation 'org.springframework:spring-tx'
+    implementation 'org.springframework:spring-web'
+
+    compileOnly 'jakarta.persistence:jakarta.persistence-api'
+}
