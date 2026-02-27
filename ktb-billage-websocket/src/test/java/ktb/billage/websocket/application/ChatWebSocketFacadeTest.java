@@ -1,9 +1,7 @@
 package ktb.billage.websocket.application;
 
-import ktb.billage.domain.chat.dto.ChatResponse;
+import ktb.billage.domain.chat.dto.PartnerProfile;
 import ktb.billage.domain.chat.service.ChatMessageCommandService;
-import ktb.billage.domain.chat.service.ChatMessageQueryService;
-import ktb.billage.domain.chat.service.ChatroomCommandService;
 import ktb.billage.domain.chat.service.ChatroomQueryService;
 import ktb.billage.domain.group.dto.GroupResponse;
 import ktb.billage.domain.group.service.GroupService;
@@ -55,7 +53,7 @@ class ChatWebSocketFacadeTest {
         String message = "test message";
 
         when(chatroomQueryService.findPartnerProfile(chatroomId, sendMembershipId))
-                .thenReturn(new ChatResponse.PartnerProfile(receiveMembershipId, "partner"));
+                .thenReturn(new PartnerProfile(receiveMembershipId, "partner", false));
         when(membershipService.findUserIdByMembershipId(receiveMembershipId))
                 .thenReturn(receiveUserId);
         when(chatMessageCommandService.sendMessage(eq(chatroomId), eq(sendMembershipId), eq(message), any(Instant.class)))
