@@ -64,6 +64,10 @@ public class MembershipService {
         }
     }
 
+    public void validateNotLeave(Long membershipId) {
+        findMembership(membershipId);
+    }
+
     public List<Long> findMembershipIds(Long userId) {
          return membershipRepository.findAllByUserIdAndDeletedAtIsNull(userId).stream()
                  .map(Membership::getId)

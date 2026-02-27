@@ -101,7 +101,12 @@ public class ChatroomQueryService {
                 .orElseThrow(() -> new ChatException(CHATROOM_NOT_PARTICIPATE));
     }
 
-    public void validateChatroom(Long chatroomId) {
+    public void validateChatroomWithMessage(Long chatroomId) {
+        chatroomRepository.findByIdAndLastMessageIdIsNotNull(chatroomId)
+                .orElseThrow(() -> new ChatException(CHATROOM_NOT_FOUND));
+    }
+
+    public void validateChatroomExists(Long chatroomId) {
         chatroomRepository.findById(chatroomId)
                 .orElseThrow(() -> new ChatException(CHATROOM_NOT_FOUND));
     }

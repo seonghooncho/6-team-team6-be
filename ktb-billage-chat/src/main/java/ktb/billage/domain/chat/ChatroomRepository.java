@@ -17,6 +17,8 @@ public interface ChatroomRepository extends JpaRepository<Chatroom, Long> {
 
     Optional<Chatroom> findFirstByPostIdAndBuyerId(Long postId, Long buyerId);
 
+    Optional<Chatroom> findByIdAndLastMessageIdIsNotNull(Long memebershipId);
+
     @Query("""
             select case when count(c) > 0 then true else false end
             from Chatroom c

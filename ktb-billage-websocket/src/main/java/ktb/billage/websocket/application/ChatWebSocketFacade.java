@@ -30,7 +30,7 @@ public class ChatWebSocketFacade {
     private final ApplicationEventPublisher eventPublisher;
 
     public ChatResponse.ChatroomMembershipDto joinChatroom(Long chatroomId, Long userId) {
-        chatroomQueryService.validateChatroom(chatroomId);
+        chatroomQueryService.validateChatroomExists(chatroomId);
 
         List<Long> membershipIds = membershipService.findMembershipIds(userId);
         ChatResponse.ChatroomMembershipDto participation = chatroomQueryService.findParticipation(chatroomId, membershipIds);
