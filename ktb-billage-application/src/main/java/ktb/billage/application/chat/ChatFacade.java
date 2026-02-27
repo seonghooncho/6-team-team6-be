@@ -4,6 +4,7 @@ import ktb.billage.common.exception.ChatException;
 import ktb.billage.common.exception.GroupException;
 import ktb.billage.common.image.ImageService;
 import ktb.billage.domain.chat.dto.ChatResponse;
+import ktb.billage.domain.chat.dto.PartnerProfile;
 import ktb.billage.domain.chat.service.ChatMessageQueryService;
 import ktb.billage.domain.chat.service.ChatroomCommandService;
 import ktb.billage.domain.chat.service.ChatroomQueryService;
@@ -192,19 +193,21 @@ public class ChatFacade {
         chatroomQueryService.validateChatroom(chatroomId);
         ChatResponse.ChatroomMembershipDto participation = chatroomQueryService.findParticipation(chatroomId, membershipIds);
 
-        ChatResponse.PartnerProfile partnerProfile = chatroomQueryService.findPartnerProfile(chatroomId, participation.membershipId());
+        PartnerProfile partnerProfile = chatroomQueryService.findPartnerProfile(chatroomId, participation.membershipId());
 
         return new ChatResponse.PostSummary(
                 partnerProfile.partnerId(),
                 partnerProfile.nickname(),
+                partnerProfile.isLeftGroup(),
                 groupId,
                 groupProfile.groupName(),
                 postId,
-                postDetailCore.title(),
-                getImagePresignedUrl(postDetailCore.imageUrls().imageInfos().getFirst().imageUrl()),
-                postDetailCore.rentalFee(),
-                postDetailCore.feeUnit().name(),
-                postDetailCore.rentalStatus().name()
+                postDto.title(),
+                getImagePresignedUrl(postDto.firstImageUrl()),
+                postDto.rentalFee(),
+                postDto.feeUnit(),
+                postDto.rentalStatus(),
+                postDto.isDeleted()
         );
     }
 

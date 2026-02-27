@@ -55,11 +55,11 @@ public class MembershipService {
     }
 
     public Long findGroupIdByMembershipId(Long membershipId) {
-        return findMembership(membershipId).getGroupId();
+        return findMembershipIncludingWithdraw(membershipId).getGroupId();
     }
 
     public void validateMembershipOwner(Long userId, Long membershipId) {
-        if (!findMembership(membershipId).isOwnedBy(userId)) {
+        if (!findMembershipIncludingWithdraw(membershipId).isOwnedBy(userId)) {
             throw new GroupException(NOT_GROUP_MEMBER);
         }
     }
@@ -97,7 +97,7 @@ public class MembershipService {
     }
 
     public Map<Long, MembershipProfile> findMembershipProfiles(List<Long> membershipIds) {
-        return membershipRepository.findAllByIdInAndDeletedAtIsNull(membershipIds).stream()
+        return membershipRepository.findAllByIdIn(membershipIds).stream()
                 .map(membership -> new MembershipProfile(
                         membership.getId(),
                         membership.getGroupId(),
@@ -135,6 +135,11 @@ public class MembershipService {
 
     private Membership findMembership(Long membershipId) {
         return membershipRepository.findByIdAndDeletedAtIsNull(membershipId)
+                .orElseThrow(() -> new GroupException(NOT_GROUP_MEMBER));
+    }
+
+    private Membership findMembershipIncludingWithdraw(Long membershipId) {
+        return membershipRepository.findById(membershipId)
                 .orElseThrow(() -> new GroupException(NOT_GROUP_MEMBER));
     }
 

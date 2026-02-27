@@ -78,6 +78,7 @@ public class ChatResponse {
     public record PostSummary(
             Long partnerId,
             String partnerNickname,
+            Boolean isPartnerLeftGroup,
             Long groupId,
             String groupName,
             Long postId,
@@ -85,13 +86,8 @@ public class ChatResponse {
             String postFirstImageUrl,
             BigDecimal rentalFee,
             String feeUnit,
-            String rentalStatus
-    ) {
-    }
-
-    public record PartnerProfile(
-            Long partnerId,
-            String nickname
+            String rentalStatus,
+            Boolean isPostDeleted
     ) {
     }
 }

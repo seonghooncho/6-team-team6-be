@@ -15,7 +15,7 @@ public interface MembershipRepository extends JpaRepository<Membership, Long> {
     boolean existsByGroupIdAndUserIdAndDeletedAtIsNull(Long groupId, Long userId);
 
     Optional<Membership> findByIdAndDeletedAtIsNull(Long membershipId);
-    List<Membership> findAllByIdInAndDeletedAtIsNull(List<Long> membershipIds);
+    List<Membership> findAllByIdIn(List<Long> membershipIds);
 
     List<Membership> findAllByUserIdAndDeletedAtIsNull(Long userId);
 

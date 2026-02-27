@@ -1,5 +1,6 @@
 package ktb.billage.domain.chat;
 
+import ktb.billage.domain.chat.dto.PartnerProfile;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -165,9 +166,10 @@ public interface ChatroomRepository extends JpaRepository<Chatroom, Long> {
     );
 
     @Query("""
-                select new ktb.billage.domain.chat.dto.ChatResponse$PartnerProfile(
+                select new ktb.billage.domain.chat.dto.PartnerProfile(
                     m.id,
-                    m.nickname
+                    m.nickname,
+                    case when m.deletedAt is not null then true else false end
                    )
             from Chatroom c
             join Post p on c.postId = p.id
@@ -175,7 +177,7 @@ public interface ChatroomRepository extends JpaRepository<Chatroom, Long> {
             where c.id = :chatroomId
                 and c.deletedAt is null
             """)
-    ChatResponse.PartnerProfile findPartnerProfile(@Param("chatroomId") Long chatroomId, @Param("myId") Long myId);
+    PartnerProfile findPartnerProfile(@Param("chatroomId") Long chatroomId, @Param("myId") Long myId);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
