@@ -4,7 +4,7 @@ on:
   workflow_run:
     workflows: ["Backend CI/CD Docker"]
     types: [completed]
-    branches: [dev, main]
+    branches: [dev, main, feature/v2-docker-cd-122]
 
 permissions:
   id-token: write
@@ -36,6 +36,10 @@ jobs:
       (
         github.event.workflow_run.head_branch == 'dev' ||
         (
+          github.repository == 'seonghooncho/6-team-team6-be' &&
+          github.event.workflow_run.head_branch == 'feature/v2-docker-cd-122'
+        ) ||
+        (
           github.event.workflow_run.head_branch == 'main' &&
           vars.ENABLE_V2_PROD_CD == 'true'
         )
@@ -51,6 +55,11 @@ jobs:
             echo "MIN_HEALTHY=${DEV_MIN_HEALTHY}" >> "$GITHUB_ENV"
             echo "INSTANCE_WARMUP=${DEV_INSTANCE_WARMUP}" >> "$GITHUB_ENV"
             echo "ENVIRONMENT=DEV" >> $GITHUB_ENV
+          elif [ "${{ github.event.workflow_run.head_branch }}" = "feature/v2-docker-cd-122" ]; then
+            echo "ASG_NAME=${DEV_ASG_NAME}" >> "$GITHUB_ENV"
+            echo "MIN_HEALTHY=${DEV_MIN_HEALTHY}" >> "$GITHUB_ENV"
+            echo "INSTANCE_WARMUP=${DEV_INSTANCE_WARMUP}" >> "$GITHUB_ENV"
+            echo "ENVIRONMENT=DEV-TEST" >> $GITHUB_ENV
           elif [ "${{ github.event.workflow_run.head_branch }}" = "main" ]; then
             echo "ASG_NAME=${PROD_ASG_NAME}" >> "$GITHUB_ENV"
             echo "MIN_HEALTHY=${PROD_MIN_HEALTHY}" >> "$GITHUB_ENV"

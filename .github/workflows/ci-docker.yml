@@ -4,7 +4,7 @@ name: Backend CI/CD Docker
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main, dev, feature/v2-docker-cd-122]
     paths:
       - 'ktb-billage-*/src/**'
       - 'ktb-billage-*/build.gradle'
