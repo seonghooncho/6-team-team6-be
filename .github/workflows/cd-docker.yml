@@ -1,5 +1,4 @@
 name: Backend CD Docker (Dev/Prod)
-# fork trigger recheck marker (2026-02-27)
 
 on:
   workflow_run:
@@ -71,25 +70,6 @@ jobs:
             exit 1
           fi
 
-      - name: Checkout Source (Triggered SHA)
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
-
-      - name: Download Build Artifact
-        uses: dawidd6/action-download-artifact@v9
-        with:
-          workflow: ci-docker.yml
-          run_id: ${{ github.event.workflow_run.id }}
-          name: build-artifact
-          path: .
-
-      - name: Verify Build Artifact
-        run: |
-          set -e
-          test -f app.jar
-          ls -lh app.jar
-
       - name: Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -97,28 +77,9 @@ jobs:
           role-session-name: github-actions-backend-cd
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build and Push Docker Image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: |
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          provenance: false
-
       - name: Confirm Image Exists in ECR
         run: |
+          set -euo pipefail
           aws ecr describe-images \
             --repository-name $ECR_REPOSITORY \
             --image-ids imageTag=${IMAGE_TAG}

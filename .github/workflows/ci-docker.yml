@@ -1,5 +1,4 @@
 # Backend CI/CD Pipeline with Docker & ECR
-# fork trigger check marker (2026-02-27)
 
 name: Backend CI/CD Docker
 
@@ -158,13 +157,31 @@ jobs:
           retention-days: 7
 
   # ===========================================
-  # main 브랜치 전용: Docker Build & ECR Push
+  # 배포 브랜치 전용: Docker Build & ECR Push
+  # - dev/feature: Unit Test 통과 후 Push
+  # - main: Unit + Integration Test 통과 후 Push
   # ===========================================
   docker-build-push:
     name: Docker Build & ECR Push
     runs-on: ubuntu-latest
     needs: [build-and-test, integration-test]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: >-
+      ${{
+        github.event_name == 'push' &&
+        needs.build-and-test.result == 'success' &&
+        (
+          needs.integration-test.result == 'success' ||
+          needs.integration-test.result == 'skipped'
+        ) &&
+        (
+          github.ref == 'refs/heads/dev' ||
+          github.ref == 'refs/heads/feature/v2-docker-cd-122' ||
+          (
+            github.ref == 'refs/heads/main' &&
+            needs.integration-test.result == 'success'
+          )
+        )
+      }}
 
     steps:
       - name: Checkout
