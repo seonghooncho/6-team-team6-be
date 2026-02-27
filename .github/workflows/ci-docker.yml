@@ -167,6 +167,7 @@ jobs:
     needs: [build-and-test, integration-test]
     if: >-
       ${{
+        always() &&
         github.event_name == 'push' &&
         needs.build-and-test.result == 'success' &&
         (
