@@ -40,7 +40,12 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus
+        include: health,info,prometheus,env,configprops
+  endpoint:
+    env:
+      show-values: ALWAYS
+    configprops:
+      show-values: ALWAYS
 
 ---
 spring:
