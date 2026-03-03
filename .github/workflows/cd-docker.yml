@@ -1,4 +1,5 @@
 name: Backend CD Docker (Dev/Prod)
+# smoke: force-prod-cd-manual-test
 
 on:
   workflow_run:
