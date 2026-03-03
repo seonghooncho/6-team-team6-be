@@ -4,7 +4,7 @@ name: Backend CI/CD Docker
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
     paths:
       - 'ktb-billage-*/src/**'
       - 'ktb-billage-*/build.gradle'
@@ -15,7 +15,7 @@ on:
       - 'Dockerfile'
       - '.github/workflows/**'
   pull_request:
-    branches: [main]
+    branches: [main, dev]
     paths:
       - 'ktb-billage-*/src/**'
       - 'ktb-billage-*/build.gradle'
@@ -158,7 +158,8 @@ jobs:
 
   # ===========================================
   # 배포 브랜치 전용: Docker Build & ECR Push
-  # - main: Unit + Integration Test 통과 후 Push
+  # - dev: Unit Test 통과 후 Push (billage-be:dev-latest)
+  # - main: Unit + Integration Test 통과 후 Push (billage-be:prod-latest)
   # ===========================================
   docker-build-push:
     name: Docker Build & ECR Push
@@ -170,8 +171,13 @@ jobs:
         github.event_name == 'push' &&
         needs.build-and-test.result == 'success' &&
         (
-          github.ref == 'refs/heads/main' &&
-          needs.integration-test.result == 'success'
+          (
+            github.ref == 'refs/heads/dev' ||
+            (
+              github.ref == 'refs/heads/main' &&
+              needs.integration-test.result == 'success'
+            )
+          )
         ) &&
         (
           needs.integration-test.result == 'success' ||
@@ -213,7 +219,11 @@ jobs:
 
           echo "tags<<EOF" >> "$GITHUB_OUTPUT"
           echo "${repo}:${{ github.sha }}"
-          echo "${repo}:prod-latest"
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            echo "${repo}:prod-latest"
+          else
+            echo "${repo}:dev-latest"
+          fi
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Build and Push Docker Image
