@@ -151,20 +151,44 @@ jobs:
         id: refresh
         run: |
           set -euo pipefail
+          MAX_REFRESH_RETRIES=15
+          RETRY_INTERVAL_SECONDS=30
 
-          REFRESH_ID=$(aws autoscaling start-instance-refresh \
-            --auto-scaling-group-name "${{ steps.context.outputs.asg_name }}" \
-            --strategy Rolling \
-            --preferences "{\"MinHealthyPercentage\": ${{ steps.context.outputs.min_healthy }}, \"InstanceWarmup\": ${{ steps.context.outputs.instance_warmup }}}" \
-            --query 'InstanceRefreshId' \
-            --output text)
+          attempt=1
+          while true; do
+            set +e
+            REFRESH_OUTPUT=$(aws autoscaling start-instance-refresh \
+              --auto-scaling-group-name "${{ steps.context.outputs.asg_name }}" \
+              --strategy Rolling \
+              --preferences "{\"MinHealthyPercentage\": ${{ steps.context.outputs.min_healthy }}, \"InstanceWarmup\": ${{ steps.context.outputs.instance_warmup }}}" \
+              --query 'InstanceRefreshId' \
+              --output text 2>&1)
+            REFRESH_EXIT_CODE=$?
+            set -e
 
-          if [ -z "$REFRESH_ID" ] || [ "$REFRESH_ID" = "None" ]; then
+            if [ "$REFRESH_EXIT_CODE" -eq 0 ]; then
+              REFRESH_ID="$REFRESH_OUTPUT"
+              if [ -n "$REFRESH_ID" ] && [ "$REFRESH_ID" != "None" ]; then
+                echo "refresh_id=$REFRESH_ID" >> "$GITHUB_OUTPUT"
+                break
+              fi
+
+              echo "::error::Failed to start instance refresh"
+              echo "$REFRESH_OUTPUT"
+              exit 1
+            fi
+
+            if [[ "$REFRESH_OUTPUT" == *"InstanceRefreshInProgress"* ]] && [ "$attempt" -lt "$MAX_REFRESH_RETRIES" ]; then
+              echo "::warning::ASG instance refresh already in progress. Retry ${attempt}/${MAX_REFRESH_RETRIES} after ${RETRY_INTERVAL_SECONDS}s"
+              sleep "$RETRY_INTERVAL_SECONDS"
+              attempt=$((attempt + 1))
+              continue
+            fi
+
             echo "::error::Failed to start instance refresh"
+            echo "$REFRESH_OUTPUT"
             exit 1
-          fi
-
-          echo "refresh_id=$REFRESH_ID" >> "$GITHUB_OUTPUT"
+          done
 
       - name: Wait for Instance Refresh
         run: |
