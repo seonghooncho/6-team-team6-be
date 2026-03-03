@@ -217,14 +217,13 @@ jobs:
           registry="${{ steps.login-ecr.outputs.registry }}"
           repo="${registry}/${{ env.ECR_REPOSITORY }}"
 
-          echo "tags<<EOF" >> "$GITHUB_OUTPUT"
-          echo "${repo}:${{ github.sha }}"
           if [ "${{ github.ref_name }}" = "main" ]; then
-            echo "${repo}:prod-latest"
+            tags="${repo}:${{ github.sha }},${repo}:prod-latest"
           else
-            echo "${repo}:dev-latest"
+            tags="${repo}:${{ github.sha }},${repo}:dev-latest"
           fi
-          echo "EOF" >> "$GITHUB_OUTPUT"
+
+          echo "tags=${tags}" >> "$GITHUB_OUTPUT"
 
       - name: Build and Push Docker Image
         uses: docker/build-push-action@v6
