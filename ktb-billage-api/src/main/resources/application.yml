@@ -27,6 +27,7 @@ spring:
       - classpath:application-ai.yml
       - classpath:application-flyway.yml
       - classpath:application-firebase.yml
+      - classpath:application-rabbitmq.yml
 
   jpa:
     open-in-view: false
@@ -40,7 +41,12 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus
+        include: health,info,prometheus,env,configprops
+  endpoint:
+    env:
+      show-values: ALWAYS
+    configprops:
+      show-values: ALWAYS
 
 ---
 spring:

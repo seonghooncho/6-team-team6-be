@@ -1,4 +1,4 @@
-package ktb.billage.websocket.infra;
+package ktb.billage.websocket.application.adapter;
 
 import ktb.billage.websocket.application.port.ChatWebSocketNotifier;
 import ktb.billage.websocket.config.WebSocketDestinations;

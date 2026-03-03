@@ -51,7 +51,7 @@ public class MembershipService {
     }
 
     public Long findUserIdByMembershipId(Long membershipId) {
-        return findMembership(membershipId).getUserId();
+        return findMembershipIncludingWithdraw(membershipId).getUserId();
     }
 
     public Long findGroupIdByMembershipId(Long membershipId) {
