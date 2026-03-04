@@ -1,10 +1,25 @@
 name: Backend CD Docker (Dev/Prod)
+# smoke: force-prod-cd-manual-test
 
 on:
   workflow_run:
     workflows: ["Backend CI/CD Docker"]
     types: [completed]
     branches: [dev, main]
+  workflow_dispatch:
+    inputs:
+      target_env:
+        description: "수동 배포할 환경 (dev 또는 prod)"
+        required: false
+        default: dev
+        type: choice
+        options:
+          - dev
+          - prod
+      image_tag:
+        description: "확인할 이미지 태그 (선택). 비우면 환경 기준 태그를 사용"
+        required: false
+        type: string
 
 permissions:
   id-token: write
@@ -14,145 +29,204 @@ permissions:
 env:
   AWS_REGION: ap-northeast-2
   ECR_REPOSITORY: ${{ vars.V2_ECR_REPOSITORY || 'billage-be' }}
-  IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
   DEV_ASG_NAME: ${{ vars.V2_DEV_ASG_NAME || 'billage-dev-v2-be-asg' }}
   PROD_ASG_NAME: ${{ vars.V2_PROD_ASG_NAME || 'billage-prod-v2-be-asg' }}
   DEV_MIN_HEALTHY: ${{ vars.V2_DEV_MIN_HEALTHY || '0' }}
-  PROD_MIN_HEALTHY: ${{ vars.V2_PROD_MIN_HEALTHY || '50' }}
+  PROD_MIN_HEALTHY: ${{ vars.V2_PROD_MIN_HEALTHY || '0' }}
   DEV_INSTANCE_WARMUP: ${{ vars.V2_DEV_INSTANCE_WARMUP || '30' }}
   PROD_INSTANCE_WARMUP: ${{ vars.V2_PROD_INSTANCE_WARMUP || '120' }}
 
 concurrency:
-  group: cd-docker-${{ github.event.workflow_run.head_branch }}
+  group: cd-docker-${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || inputs.target_env || 'prod' }}
   cancel-in-progress: true
 
 jobs:
   deploy:
-    name: Deploy Backend (v2)
+    name: Deploy Backend (v2 Dev/Prod)
     runs-on: ubuntu-latest
-    if: >
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' &&
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
       (
-        github.event.workflow_run.head_branch == 'dev' ||
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
         (
-          github.event.workflow_run.head_branch == 'main' &&
-          vars.ENABLE_V2_PROD_CD == 'true'
+          github.event.workflow_run.head_branch == 'dev' ||
+          github.event.workflow_run.head_branch == 'main'
         )
       )
 
     steps:
-      - name: Determine Environment
+      - name: Resolve Deployment Context
+        id: context
         run: |
           set -euo pipefail
 
-          if [ "${{ github.event.workflow_run.head_branch }}" = "dev" ]; then
-            echo "ASG_NAME=${DEV_ASG_NAME}" >> "$GITHUB_ENV"
-            echo "MIN_HEALTHY=${DEV_MIN_HEALTHY}" >> "$GITHUB_ENV"
-            echo "INSTANCE_WARMUP=${DEV_INSTANCE_WARMUP}" >> "$GITHUB_ENV"
-            echo "ENVIRONMENT=DEV" >> $GITHUB_ENV
-          elif [ "${{ github.event.workflow_run.head_branch }}" = "main" ]; then
-            echo "ASG_NAME=${PROD_ASG_NAME}" >> "$GITHUB_ENV"
-            echo "MIN_HEALTHY=${PROD_MIN_HEALTHY}" >> "$GITHUB_ENV"
-            echo "INSTANCE_WARMUP=${PROD_INSTANCE_WARMUP}" >> "$GITHUB_ENV"
-            echo "ENVIRONMENT=PROD" >> $GITHUB_ENV
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            DEPLOY_ENV="${{ inputs.target_env }}"
+            CHECK_TAG="${{ inputs.image_tag }}"
           else
-            echo "Unsupported branch"
+            DEPLOY_ENV="${{ github.event.workflow_run.head_branch }}"
+            CHECK_TAG="${{ github.event.workflow_run.head_sha }}"
+          fi
+
+          if [ "$DEPLOY_ENV" = "dev" ]; then
+            ASG_NAME="${DEV_ASG_NAME}"
+            MIN_HEALTHY="${DEV_MIN_HEALTHY}"
+            INSTANCE_WARMUP="${DEV_INSTANCE_WARMUP}"
+            RUNTIME_TAG="latest"
+            DEPLOY_LABEL="DEV"
+          elif [ "$DEPLOY_ENV" = "main" ] || [ "$DEPLOY_ENV" = "prod" ]; then
+            ASG_NAME="${PROD_ASG_NAME}"
+            MIN_HEALTHY="${PROD_MIN_HEALTHY}"
+            INSTANCE_WARMUP="${PROD_INSTANCE_WARMUP}"
+            RUNTIME_TAG="prod-latest"
+            DEPLOY_LABEL="PROD"
+          else
+            echo "::error::Unsupported branch/environment: ${DEPLOY_ENV}"
             exit 1
           fi
+
+          if [ "$DEPLOY_ENV" = "main" ]; then
+            DEPLOY_ENV="prod"
+          fi
+
+          if [ -z "${CHECK_TAG}" ] || [ "${CHECK_TAG}" = "null" ]; then
+            CHECK_TAG="$RUNTIME_TAG"
+          fi
+
+          echo "deploy_env=$DEPLOY_ENV" >> "$GITHUB_OUTPUT"
+          echo "deploy_label=$DEPLOY_LABEL" >> "$GITHUB_OUTPUT"
+          echo "asg_name=$ASG_NAME" >> "$GITHUB_OUTPUT"
+          echo "min_healthy=$MIN_HEALTHY" >> "$GITHUB_OUTPUT"
+          echo "instance_warmup=$INSTANCE_WARMUP" >> "$GITHUB_OUTPUT"
+          echo "runtime_tag=$RUNTIME_TAG" >> "$GITHUB_OUTPUT"
+          echo "check_tag=$CHECK_TAG" >> "$GITHUB_OUTPUT"
 
       - name: Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          role-session-name: github-actions-backend-cd
+          role-session-name: github-actions-backend-cd-${{ github.run_id }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Confirm Image Exists in ECR
-        run: |
-          set -euo pipefail
-          aws ecr describe-images \
-            --repository-name $ECR_REPOSITORY \
-            --image-ids imageTag=${IMAGE_TAG}
-
-      - name: Validate v2 ASG Configuration
+      - name: Validate Deployment Target ASG
         run: |
           set -euo pipefail
 
-          if [[ ! "$MIN_HEALTHY" =~ ^[0-9]+$ ]] || [ "$MIN_HEALTHY" -lt 0 ] || [ "$MIN_HEALTHY" -gt 100 ]; then
-            echo "MIN_HEALTHY must be 0~100. current=$MIN_HEALTHY"
+          if [[ ! "${{ steps.context.outputs.min_healthy }}" =~ ^[0-9]+$ ]] ||
+             [ "${{ steps.context.outputs.min_healthy }}" -lt 0 ] ||
+             [ "${{ steps.context.outputs.min_healthy }}" -gt 100 ]; then
+            echo "::error::Invalid MIN_HEALTHY: ${{ steps.context.outputs.min_healthy }}"
             exit 1
           fi
 
-          if [[ ! "$INSTANCE_WARMUP" =~ ^[0-9]+$ ]]; then
-            echo "INSTANCE_WARMUP must be a positive integer. current=$INSTANCE_WARMUP"
+          if [[ ! "${{ steps.context.outputs.instance_warmup }}" =~ ^[0-9]+$ ]]; then
+            echo "::error::Invalid INSTANCE_WARMUP: ${{ steps.context.outputs.instance_warmup }}"
             exit 1
           fi
 
           ASG_COUNT=$(aws autoscaling describe-auto-scaling-groups \
-            --auto-scaling-group-names "${ASG_NAME}" \
+            --auto-scaling-group-names "${{ steps.context.outputs.asg_name }}" \
             --query 'length(AutoScalingGroups)' \
             --output text)
 
-          if [ "${ASG_COUNT}" -eq 0 ]; then
-            echo "ASG not found: ${ASG_NAME}"
+          if [ "$ASG_COUNT" -eq 0 ]; then
+            echo "::error::ASG not found: ${{ steps.context.outputs.asg_name }}"
             exit 1
           fi
 
-      - name: Trigger ASG Instance Refresh
+      - name: Confirm Image Exists in ECR
         run: |
           set -euo pipefail
 
-          REFRESH_ID=$(aws autoscaling start-instance-refresh \
-            --auto-scaling-group-name "${ASG_NAME}" \
-            --strategy Rolling \
-            --preferences "{\"MinHealthyPercentage\": ${MIN_HEALTHY}, \"InstanceWarmup\": ${INSTANCE_WARMUP}}" \
-            --query 'InstanceRefreshId' \
-            --output text)
-
-          if [ -z "$REFRESH_ID" ] || [ "$REFRESH_ID" = "None" ]; then
-            echo "Failed to start instance refresh"
-            exit 1
+          aws ecr describe-images \
+            --repository-name ${{ env.ECR_REPOSITORY }} \
+            --image-ids imageTag="${{ steps.context.outputs.runtime_tag }}"
+          if [ "${{ steps.context.outputs.check_tag }}" != "${{ steps.context.outputs.runtime_tag }}" ]; then
+            aws ecr describe-images \
+              --repository-name ${{ env.ECR_REPOSITORY }} \
+              --image-ids imageTag="${{ steps.context.outputs.check_tag }}"
           fi
 
-          echo "REFRESH_ID=$REFRESH_ID" >> "$GITHUB_ENV"
+      - name: Trigger ASG Instance Refresh
+        id: refresh
+        run: |
+          set -euo pipefail
+          MAX_REFRESH_RETRIES=15
+          RETRY_INTERVAL_SECONDS=30
+
+          attempt=1
+          while true; do
+            set +e
+            REFRESH_OUTPUT=$(aws autoscaling start-instance-refresh \
+              --auto-scaling-group-name "${{ steps.context.outputs.asg_name }}" \
+              --strategy Rolling \
+              --preferences "{\"MinHealthyPercentage\": ${{ steps.context.outputs.min_healthy }}, \"InstanceWarmup\": ${{ steps.context.outputs.instance_warmup }}}" \
+              --query 'InstanceRefreshId' \
+              --output text 2>&1)
+            REFRESH_EXIT_CODE=$?
+            set -e
+
+            if [ "$REFRESH_EXIT_CODE" -eq 0 ]; then
+              REFRESH_ID="$REFRESH_OUTPUT"
+              if [ -n "$REFRESH_ID" ] && [ "$REFRESH_ID" != "None" ]; then
+                echo "refresh_id=$REFRESH_ID" >> "$GITHUB_OUTPUT"
+                break
+              fi
+
+              echo "::error::Failed to start instance refresh"
+              echo "$REFRESH_OUTPUT"
+              exit 1
+            fi
+
+            if [[ "$REFRESH_OUTPUT" == *"InstanceRefreshInProgress"* ]] && [ "$attempt" -lt "$MAX_REFRESH_RETRIES" ]; then
+              echo "::warning::ASG instance refresh already in progress. Retry ${attempt}/${MAX_REFRESH_RETRIES} after ${RETRY_INTERVAL_SECONDS}s"
+              sleep "$RETRY_INTERVAL_SECONDS"
+              attempt=$((attempt + 1))
+              continue
+            fi
+
+            echo "::error::Failed to start instance refresh"
+            echo "$REFRESH_OUTPUT"
+            exit 1
+          done
 
       - name: Wait for Instance Refresh
         run: |
           set -euo pipefail
           for i in $(seq 1 120); do
             STATUS=$(aws autoscaling describe-instance-refreshes \
-              --auto-scaling-group-name "${ASG_NAME}" \
-              --instance-refresh-ids "${REFRESH_ID}" \
+              --auto-scaling-group-name "${{ steps.context.outputs.asg_name }}" \
+              --instance-refresh-ids "${{ steps.refresh.outputs.refresh_id }}" \
               --query 'InstanceRefreshes[0].Status' \
               --output text)
 
-            echo "[$i] ${ENVIRONMENT} refresh status: ${STATUS}"
-
-            if [ "${STATUS}" = "Successful" ]; then
+            echo "Attempt $i - status: $STATUS"
+            if [ "$STATUS" = "Successful" ]; then
               exit 0
             fi
 
-            if [ "${STATUS}" = "Failed" ] || [ "${STATUS}" = "Cancelled" ]; then
+            if [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ]; then
+              echo "::error::Instance refresh status: $STATUS"
               exit 1
             fi
 
             sleep 15
           done
 
-          echo "Timeout waiting for instance refresh"
+          echo "::error::Timeout waiting for instance refresh"
           exit 1
 
       - name: Notify Success
         if: success()
         run: |
           curl -H "Content-Type: application/json" -X POST \
-            -d "{\"content\":\"**[${ENVIRONMENT}] Backend Docker 배포 성공**\\nASG: \`${ASG_NAME}\`\\nCommit: \`${IMAGE_TAG}\`\\nRefresh: \`${REFRESH_ID}\`\"}" \
+            -d "{\"content\":\"**[${{ steps.context.outputs.deploy_label }}] Backend Docker 배포 성공**\\nASG: \`${{ steps.context.outputs.asg_name }}\`\\nRuntime 태그: \`${{ steps.context.outputs.runtime_tag }}\`\\nCheck 태그: \`${{ steps.context.outputs.check_tag }}\`\\nRefreshId: \`${{ steps.refresh.outputs.refresh_id }}\`\"}" \
             "${{ secrets.DISCORD_WEBHOOK }}"
 
       - name: Notify Failure
         if: failure()
         run: |
           curl -H "Content-Type: application/json" -X POST \
-            -d "{\"content\":\"**[${ENVIRONMENT}] Backend Docker 배포 실패**\\nASG: \`${ASG_NAME}\`\\nCommit: \`${IMAGE_TAG}\`\"}" \
+            -d "{\"content\":\"**[${{ steps.context.outputs.deploy_label }}] Backend Docker 배포 실패**\\nASG: \`${{ steps.context.outputs.asg_name }}\`\\nRuntime 태그: \`${{ steps.context.outputs.runtime_tag }}\`\\nCheck 태그: \`${{ steps.context.outputs.check_tag }}\`\"}" \
             "${{ secrets.DISCORD_WEBHOOK }}"
